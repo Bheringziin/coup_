@@ -55,17 +55,22 @@ botoes_do_menu = {
     "Golpear": pygame.Rect(0, 0, 300, 50)
 }
 botoes_do_menu["Renda"].center = (fundo_menu_rect.centerx, fundo_menu_rect.y + 100)
-@@ -74,91 +90,116 @@ def desenhar_info_jogador(pos_texto, moedas, cor_texto=PRETO):
+
+
+def desenhar_info_jogador(pos_texto, moedas, cor_texto=PRETO):
+    texto_moedas = FONTE_GERAL.render(f"$ {moedas}", True, cor_texto)
+    rect_texto = texto_moedas.get_rect(center=pos_texto)
     TELA.blit(texto_moedas, rect_texto)
 
+
 def desenhar_cartas_reveladas(lista_cartas):
-    if not lista_cartas: return
-    
-    # NOVA ALTERAÇÃO 2: Posição inicial ajustada e título removido
+    if not lista_cartas:
+        return
+
     start_x = MARGEM
     pos_y = MARGEM * 3
-    
-    espacamento_reveladas = LARGURA_CARTA_REVELADA * 0.4 
+
+    espacamento_reveladas = LARGURA_CARTA_REVELADA * 0.4
 
     for i, nome_carta in enumerate(lista_cartas):
         imagem = CARTAS_REVELADAS_IMGS.get(nome_carta)
@@ -91,9 +96,6 @@ def executar_acao(game_manager: GameManager, nome_acao: str) -> None:
         alvo = next((p for p in game_manager.players if p is not jogador and p.is_alive), None)
         if alvo:
             jogador.perform_action(CoupAction(), alvo, game_manager)
-    game_manager.next_turn()
-    while isinstance(game_manager.current_player, AIPlayer):
-        game_manager.play_turn()
 
 def rodar_tela_jogo(game_manager: GameManager, menu_visivel_atual: bool):
     menu_acoes_visivel = menu_visivel_atual
