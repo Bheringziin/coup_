@@ -1,0 +1,18 @@
+{
+    "jogadores":[
+        {
+            "nome":"",
+            "moedas":"",
+            "cartas_ativas":[],
+            "cartas_reveladas":[]
+        },
+        {
+            "nome":"",
+            "moedas":"",
+            "cartas_ativas":[],
+            "cartas_reveladas":[]
+        }
+    ],
+    "baralho": ["Duque", "Assasino", "Embaixador", "Condessa", "Capitão"],
+    "turno_atual": ""
+}

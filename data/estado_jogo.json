@@ -1,0 +1,9 @@
+{
+    "jogadores": [],  
+    "baralho": ["Duque", "Duque", "Duque", 
+                "Assassino", "Assassino", "Assassino", 
+                "Embaixador", "Embaixador", "Embaixador",
+                "Condessa", "Condessa", "Condessa",
+                "Capitao", "Capitao", "Capitao"], 
+    "turno_atual": 0
+}
