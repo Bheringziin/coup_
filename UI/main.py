@@ -2,6 +2,10 @@
 
 import pygame
 import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from src.game_manager import GameManager
+from src.player import HumanPlayer, AIPlayer
 
 # Importa as funções de cada tela
 from inicial import rodar_tela_inicial
@@ -19,6 +23,7 @@ def main():
     # Variáveis específicas para a tela de jogo
     # Elas precisam "viver" aqui no main para não serem resetadas
     menu_acoes_visivel = False
+    game_manager = None
     
     # Relógio para controlar o FPS
     relogio = pygame.time.Clock()
@@ -35,12 +40,18 @@ def main():
    
         elif estado_tela == "tela_login":
             estado_tela = rodar_tela_login()
+            if estado_tela == "tela_jogo":
+                from login import texto_usuario
+                players = [
+                    HumanPlayer(texto_usuario or "Jogador"),
+                    AIPlayer("Bot 1"),
+                    AIPlayer("Bot 2"),
+                    AIPlayer("Bot 3"),
+                ]
+                game_manager = GameManager(players)
 
         elif estado_tela == "tela_jogo":
-            # AQUI ESTÁ A CORREÇÃO:
-            # Passamos o estado do menu para a função...
-            # ...e recebemos de volta o novo estado da tela e o novo estado do menu.
-            estado_tela, menu_acoes_visivel = rodar_tela_jogo(menu_acoes_visivel)
+            estado_tela, menu_acoes_visivel = rodar_tela_jogo(game_manager, menu_acoes_visivel)
 
         elif estado_tela == "sair":
             rodando = False # Quebra o loop para sair do jogo
