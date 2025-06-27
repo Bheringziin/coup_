@@ -1,9 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import Optional, List, TYPE_CHECKING
+from typing import Optional
 from player import Player
-
-if TYPE_CHECKING:
-    from game_manager import GameManager
+from game_manager import *
 
 class Action(ABC):
     def __init__(self, cost: int, requirement: str = None, blockable_by: List[str] = None):
@@ -24,12 +22,109 @@ class Action(ABC):
         return self._requirement
     
     @abstractmethod
-    def execute(self, attacker: 'Player', target: Optional['Player'] = None, game_manager: Optional['GameManager'] = None) -> Optional[str]:
-        """Executa a ação."""
+    def execute(self, attacker, target, game_state) -> None:
         pass
 
 
-@@ -131,25 +133,61 @@ class ExchangeAction(Action):
+class IncomeAction(Action):
+    def __init__(self):
+        super().__init__(cost=0)
+    
+    def execute(self, attacker, target, game_state) -> None:
+        attacker.coins += 1
+
+
+class ForeignAidAction(Action):
+    def __init__(self):
+        super().__init__(cost=0, blockable_by=["Duke"])
+    
+    def execute(self, attacker: 'Player', target: 'Player' = None) -> str:
+        attacker.coins += 2
+        return f"{attacker.name} recebeu 2 moedas de ajuda externa"
+
+
+
+class CoupAction(Action):
+    def __init__(self):
+        """
+        Inicializa a ação Coup (Golpe de Estado) com custo 7 moedas.
+        O Coup não requer um personagem específico e não pode ser bloqueado.
+        """
+        super().__init__(cost=7)  # Coup custa 7 moedas
+    
+    def execute(self, attacker: 'Player', target: Optional['Player'], game_manager: 'GameManager') -> None:
+        """
+        Executa a ação Coup:
+        1. Verifica se o atacante tem moedas suficientes (já verificado no perform_action)
+        2. Verifica se o alvo é válido
+        3. Força o alvo a perder uma influência (carta)
+        
+        Args:
+            attacker: Jogador que está realizando a ação
+            target: Jogador alvo do Coup (deve ser fornecido)
+            game_manager: Gerenciador do jogo para atualizar estado
+        """
+        if target is None:
+            raise ValueError("CoupAction requer um alvo específico")
+        
+        if not target.is_alive:
+            raise ValueError("Não pode realizar Coup em jogador eliminado")
+        
+        # O atacante já pagou as 7 moedas (verificado no perform_action)
+        # Força o alvo a perder uma influência
+        target.lose_influence()
+        
+        # Registrar a ação no histórico do jogo
+        if game_manager is not None:
+            game_manager.add_to_history(f"{attacker.name} realizou Coup em {target.name}")
+
+class AssassinateAction(Action):
+    """Ação do Assassino - custa 3 moedas para eliminar uma influência"""
+    def __init__(self):
+        super().__init__(cost=3, requirement="Assassin", blockable_by=["Contessa"])
+    
+    def execute(self, attacker: 'Player', target: 'Player' = None) -> str:
+        if not target:
+            raise ValueError("Assassinar precisa de um alvo")
+        
+        if not target.is_alive:
+            return f"{target.name} já está eliminado"
+        
+        target.lose_influence()
+        return (f"{attacker.name} assassinou {target.name}!\n"
+                f"(Pode ser bloqueado pela Condessa)")
+
+class TaxAction(Action):
+    """Ação do Duque - ganha 3 moedas"""
+    def __init__(self):
+        super().__init__(cost=0, requirement="Duke")
+    
+    def execute(self, attacker: 'Player', target: 'Player' = None) -> str:
+        attacker.coins += 3
+        return f"{attacker.name} coletou impostos como Duque (+3 moedas)"
+
+class StealAction(Action):
+    """Ação do Capitão - rouba 2 moedas de outro jogador"""
+    def __init__(self):
+        super().__init__(cost=0, requirement="Captain", blockable_by=["Captain", "Ambassador"])
+    
+    def execute(self, attacker: 'Player', target: 'Player' = None) -> str:
+        if not target:
+            raise ValueError("Roubo precisa de um alvo")
+        
+        stolen = min(2, target.coins)
+        target.coins -= stolen
+        attacker.coins += stolen
+        
+        return (f"{attacker.name} roubou {stolen} moedas de {target.name}!\n"
+                f"(Pode ser bloqueado pelo Capitão ou Embaixador)")
+
+class ExchangeAction(Action):
+    """Ação do Embaixador - troca cartas com o baralho"""
+    def __init__(self):
+        super().__init__(cost=0, requirement="Ambassador")
+    
+    def execute(self, attacker: 'Player', target: 'Player' = None) -> str:
         # Em uma implementação completa, aqui seria a lógica de troca de cartas
         return f"{attacker.name} usou o Embaixador para trocar cartas"
     
@@ -56,38 +151,22 @@ class Challenge:
         else:
             # Desafio bem-sucedido - o jogador blefou
             player_to_check.lose_influence()
-            game.add_to_history(
-                f"{self._challenger.name} desafiou {player_to_check.name} corretamente"
-            )
-            return (
-                f"{self._challenger.name} desafiou corretamente! {player_to_check.name} "
-                f"não tinha {self._action.requirement} e perdeu uma influência."
-            )
-
-
+            return (f"{self._challenger.name} desafiou corretamente!\n"
+                    f"{player_to_check.name} não tinha {self._action.requirement} e perdeu uma influência.")
+        
 class Block:
-    """Representa um bloqueio de ação."""
-
-    def __init__(self, blocker: Player, action: Action, character: str):
+    """Representa um bloqueio a uma ação"""
+    def __init__(self, blocker: 'Player', action: Action, blocking_character: str):
         self._blocker = blocker
         self._action = action
-        self._character = character
-
+        self._blocking_character = blocking_character
+    
     def resolve(self, game: 'GameManager') -> str:
-        """Resolve o bloqueio verificando se o personagem é válido."""
-        if self._character not in self._action.blockable_by:
-            return f"{self._character} não pode bloquear esta ação."
-
-        if self._blocker.has_character(self._character):
-            game.add_to_history(
-                f"{self._blocker.name} bloqueou a ação com {self._character}"
-            )
-            return f"{self._blocker.name} bloqueou a ação com {self._character}"
-        else:
-            self._blocker.lose_influence()
-            game.add_to_history(
-                f"{self._blocker.name} tentou bloquear blefando e perdeu uma influência"
-            )
-            return (
-                f"{self._blocker.name} blefou ao tentar bloquear e perdeu uma influência!"
-            )
+        """Resolve o bloqueio"""
+        # Verifica se o bloqueio é válido para esta ação
+        if self._blocking_character not in self._action.blockable_by:
+            return f"{self._blocking_character} não pode bloquear esta ação!"
+        
+        # A ação é bloqueada
+        return (f"{self._blocker.name} bloqueou a ação com {self._blocking_character}!\n"
+                f"A ação {self._action.__class__.__name__} foi cancelada.")
