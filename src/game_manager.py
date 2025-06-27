@@ -1,15 +1,33 @@
 from action import *
 from player import *
 
-from typing import Optional
+from typing import List, Optional, Dict
+import json
+from pathlib import Path
+from Deck import Deck
 
 class GameManager:
-    # ... (outros métodos permanecem)
-    
+    def __init__(self, players: List[Player], state_file: str = "data/estado_jogo.json", load_existing: bool = False):
+        self._players = players
+        self._turn_index = 0
+        self._history: List[str] = []
+        self._deck = Deck()
+        self._state_file = state_file
+
+        if load_existing and Path(self._state_file).exists():
+            self.load_state()
+        else:
+            for p in self._players:
+                p.coins = 2
+                drawn = self._deck.draw(2)
+                for card in drawn:
+                    p.add_character(card["character"])
+            self.save_state()
+
     def play_turn(self) -> str:
         """Executa um turno completo com desafios e bloqueios"""
         player = self.current_player
-        action = player.choose_action(self.get_available_actions(player))
+        action = player.choose_action(self.get_available_actions(player), self._players)
         
         # Lógica de alvo
         target = None
@@ -35,9 +53,40 @@ class GameManager:
                 return block_result
         
         # Executa a ação se passou por desafios e bloqueios
-        result = player.perform_action(action, target)
+        result = player.perform_action(action, target, self)
         self.next_turn()
+        self.save_state()
         return result
+
+    @property
+    def current_player(self) -> Player:
+        return self._players[self._turn_index]
+
+    @property
+    def players(self) -> List[Player]:
+        return self._players
+
+    @property
+    def history(self) -> List[str]:
+        return self._history
+
+    def next_turn(self) -> None:
+        """Avança para o próximo jogador vivo."""
+        if not any(p.is_alive for p in self._players):
+            return
+        self._turn_index = (self._turn_index + 1) % len(self._players)
+        while not self._players[self._turn_index].is_alive:
+            self._turn_index = (self._turn_index + 1) % len(self._players)
+
+    def get_available_actions(self, player: Player) -> List[Action]:
+        actions = [
+            IncomeAction(), ForeignAidAction(), TaxAction(),
+            AssassinateAction(), StealAction(), ExchangeAction(), CoupAction()
+        ]
+        return [a for a in actions if player.coins >= a.cost]
+
+    def add_to_history(self, message: str) -> None:
+        self._history.append(message)
     
     def _handle_challenge(self, player: Player, action: Action, target: Player = None) -> str:
         """Gerencia a fase de desafio"""
@@ -63,17 +112,7 @@ class GameManager:
                 if isinstance(player, HumanPlayer):
                     answer = input(f"{player.name}, deseja desafiar? (s/n): ").lower()
                     if answer == 's':
-                        return player
-                elif isinstance(player, AIPlayer) and player.wants_to_challenge():
-                    return player
-        return None
-    
-    def _get_blocker(self, current_player: Player, action: Action, target: Player = None) -> Optional[Player]:
-        """Encontra um jogador que queira bloquear"""
-        # Bloqueio pode vir do alvo ou de outros jogadores, dependendo da ação
-        possible_blockers = [target] if target else self._players
-        possible_blockers = [p for p in possible_blockers if p and p != current_player and p.is_alive]
-        
+@@ -77,26 +126,54 @@ class GameManager:
         for player in possible_blockers:
             if player.can_block(action):
                 if isinstance(player, HumanPlayer):
@@ -99,4 +138,30 @@ class GameManager:
             return valid_targets[choice]
         else:
             import random
-            return random.choice(valid_targets)# Classe que controla o fluxo do jogo
+            return random.choice(valid_targets)
+
+    # ------------------------------------------------------------------
+    # Persistência de dados
+    def save_state(self) -> None:
+        """Salva o estado atual do jogo em JSON."""
+        data = {
+            "turn_index": self._turn_index,
+            "history": self._history,
+            "players": [p.to_dict() for p in self._players],
+            "deck_file": self._deck._json_file,
+        }
+        Path(self._state_file).parent.mkdir(parents=True, exist_ok=True)
+        with open(self._state_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+
+    def load_state(self) -> None:
+        """Carrega o estado do jogo se o arquivo existir."""
+        if not Path(self._state_file).exists():
+            return
+        with open(self._state_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        self._turn_index = data.get("turn_index", 0)
+        self._history = data.get("history", [])
+        self._deck = Deck(data.get("deck_file", "deck_state.json"))
+        self._players = [Player.from_dict(pdata) for pdata in data.get("players", [])]
