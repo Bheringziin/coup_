@@ -1,9 +1,8 @@
 class Carta:
-  def __init__(self, nome:str, descricao:str):
-    self.nome = nome
-    self.virada = False
-    self.descricao = descricao
-
+  def __init__(self, nome: str, descricao: str):
+    self._nome = nome
+    self._virada = False
+    self._descricao = descricao
 #Vamos usar getters(com o @property), aplicando assim o principio do encapsulamento
 #O _ antes dos atributos dentro dos getters serve pra indicar que são protegidos
 
