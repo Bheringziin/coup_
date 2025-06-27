@@ -1,19 +1,35 @@
 import pygame
 import os
-from setup import * # Importa tudo do setup
+import sys
+from setup import *  # Importa tudo do setup
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from src.action import IncomeAction, ForeignAidAction, CoupAction
+from src.player import HumanPlayer, AIPlayer
+from src.game_manager import GameManager
 
-# --- DADOS DO JOGO (Simulação) ---
-estado_do_jogo = {
-    "rodada": 1,
-    "ultima_acao": "Sua vez. Escolha uma ação.",
-    "cartas_reveladas": ["condessa", "capitao"],
-    "jogador": { "moedas": 2, "cartas": ["duque", "assassino"] },
-    "oponentes": {
-        "topo": {"moedas": 2, "cartas": 2},
-        "esquerda": {"moedas": 2, "cartas": 2},
-        "direita": {"moedas": 2, "cartas": 2}
+def montar_estado(game_manager: GameManager) -> dict:
+    players = game_manager.players
+    descartadas = []
+    if hasattr(game_manager, "_deck"):
+        descartadas = [c.get("character") for c in game_manager._deck._discard_pile]
+
+    def info_oponente(idx: int) -> dict:
+        if idx < len(players):
+            p = players[idx]
+            return {"moedas": p.coins, "cartas": len(p.characters)}
+        return {"moedas": 0, "cartas": 0}
+
+    return {
+        "rodada": len(game_manager.history) + 1,
+        "ultima_acao": game_manager.history[-1] if game_manager.history else "Sua vez. Escolha uma ação.",
+        "cartas_reveladas": descartadas,
+        "jogador": {"moedas": players[0].coins, "cartas": players[0].characters},
+        "oponentes": {
+            "esquerda": info_oponente(1),
+            "topo": info_oponente(2),
+            "direita": info_oponente(3),
+        },
     }
-}
 
 # --- ELEMENTOS DA INTERFACE (Reorganizados) ---
 info_rect = pygame.Rect(0, 0, 450, 60)
@@ -96,7 +112,21 @@ def desenhar_menu_de_acoes():
 
 
 # --- FUNÇÃO PRINCIPAL DO MÓDULO ---
-def rodar_tela_jogo(menu_visivel_atual):
+def executar_acao(game_manager: GameManager, nome_acao: str) -> None:
+    jogador = game_manager.current_player
+    if nome_acao == "Renda":
+        jogador.perform_action(IncomeAction(), None, game_manager)
+    elif nome_acao == "Ajuda Externa":
+        jogador.perform_action(ForeignAidAction(), None, game_manager)
+    elif nome_acao == "Golpear":
+        alvo = next((p for p in game_manager.players if p is not jogador and p.is_alive), None)
+        if alvo:
+            jogador.perform_action(CoupAction(), alvo, game_manager)
+    game_manager.next_turn()
+    while isinstance(game_manager.current_player, AIPlayer):
+        game_manager.play_turn()
+
+def rodar_tela_jogo(game_manager: GameManager, menu_visivel_atual: bool):
     menu_acoes_visivel = menu_visivel_atual
     for evento in pygame.event.get():
         if evento.type == pygame.QUIT: return "sair", menu_acoes_visivel
@@ -105,10 +135,14 @@ def rodar_tela_jogo(menu_visivel_atual):
                 acao_escolhida = None
                 for nome, rect in botoes_do_menu.items():
                     if rect.collidepoint(evento.pos): acao_escolhida = nome; break
-                if acao_escolhida: estado_do_jogo["ultima_acao"] = f"Você usou: {acao_escolhida}"; menu_acoes_visivel = False
+                if acao_escolhida:
+                    executar_acao(game_manager, acao_escolhida)
+                    menu_acoes_visivel = False
                 elif not fundo_menu_rect.collidepoint(evento.pos): menu_acoes_visivel = False
             else:
                 if botao_acao_rect.collidepoint(evento.pos): menu_acoes_visivel = True
+
+    estado_do_jogo = montar_estado(game_manager)
 
     TELA.fill(BRANCO)
     TELA.blit(FONTE_GERAL.render(f"Rodada: {estado_do_jogo['rodada']}", True, PRETO), (MARGEM, MARGEM))
@@ -120,7 +154,10 @@ def rodar_tela_jogo(menu_visivel_atual):
     # Jogador (Base)
     pos_base_jogador = (TELA_RECT.centerx, TELA_RECT.bottom)
     desenhar_cartas_jogador(pos_base_jogador, estado_do_jogo['jogador']['cartas'])
-    desenhar_info_jogador((pos_base_jogador[0], pos_base_jogador[1] - ALTURA_CARTA_JOGADOR - MARGEM_MOEDAS_VERTICAL), estado_do_jogo['jogador']['moedas'])
+    desenhar_info_jogador(
+        (pos_base_jogador[0], pos_base_jogador[1] - ALTURA_CARTA_JOGADOR - MARGEM_MOEDAS_VERTICAL),
+        estado_do_jogo['jogador']['moedas']
+    )
     
     # Oponente Esquerda
     pos_base_esquerda = (TELA_RECT.left, TELA_RECT.centery)
@@ -147,13 +184,17 @@ def rodar_tela_jogo(menu_visivel_atual):
     # Oponente Topo
     pos_base_topo = (TELA_RECT.centerx, TELA_RECT.top)
     desenhar_cartas_oponente(pos_base_topo, estado_do_jogo['oponentes']['topo']['cartas'], 180)
-    desenhar_info_jogador((pos_base_topo[0], pos_base_topo[1] + ALTURA_CARTA + MARGEM_MOEDAS_VERTICAL), estado_do_jogo['oponentes']['topo']['moedas'])
+    desenhar_info_jogador(
+        (pos_base_topo[0], pos_base_topo[1] + ALTURA_CARTA + MARGEM_MOEDAS_VERTICAL),
+        estado_do_jogo['oponentes']['topo']['moedas']
+    )
     
     # Cemitério (sem título)
     desenhar_cartas_reveladas(estado_do_jogo['cartas_reveladas'])
     
     # Caixa de informação (agora centralizada)
-    pygame.draw.rect(TELA, (240, 240, 240), info_rect); pygame.draw.rect(TELA, PRETO, info_rect, 2)
+    pygame.draw.rect(TELA, (240, 240, 240), info_rect)
+    pygame.draw.rect(TELA, PRETO, info_rect, 2)
     texto_acao = FONTE_ACAO.render(estado_do_jogo['ultima_acao'], True, PRETO)
     TELA.blit(texto_acao, texto_acao.get_rect(center=info_rect.center))
 
