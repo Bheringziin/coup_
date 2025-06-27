@@ -17,10 +17,10 @@ class Deck:
         self._cards = []
         self._discard_pile = []
         
-        if Path(json_file).exists():␊
-            self._load_from_json()
-        else:␊
-            self._initialize_new_deck()
+        if Path(json_file).exists():
+            self._load_from_json()␊
+        else:
+            self._initialize_new_deck()␊
     
     def _initialize_new_deck(self) -> None:
         """Cria um baralho novo com as cartas padroes do Coup."""
