@@ -17,26 +17,27 @@ class Deck:
         self._cards = []
         self._discard_pile = []
         
-        if Path(json_file).exists():
-            self._load_from_json()  # Método a ser implementado
-        else:
-            self._initialize_new_deck()  # Método a ser implementado
+        if Path(json_file).exists():␊
+            self._load_from_json()
+        else:␊
+            self._initialize_new_deck()
     
     def _initialize_new_deck(self) -> None:
-        """Inicializa um novo baralho (implementação parcial)"""
-        # TODO: Implementar a criação inicial das cartas
-        # Exemplo básico (substituir pela lógica real):
-        self._cards = [
-            {"id": 1, "character": "Duke", "in_game": False},
-            {"id": 2, "character": "Assassin", "in_game": False},
-            # ... outras cartas
-        ]
+        """Cria um baralho novo com as cartas padroes do Coup."""
+        characters = ["Duke", "Assassin", "Captain", "Ambassador", "Contessa"]
+        self._cards = []
+        card_id = 1
+        for character in characters:
+            for _ in range(3):  # três cópias de cada personagem
+                self._cards.append({"id": card_id, "character": character, "in_game": False})
+                card_id += 1
+
+        self._discard_pile = []
         self.shuffle()
-        self._save_to_json()  # Método a ser implementado
+        self._save_to_json()
     
     def _load_from_json(self) -> None:
-        """Carrega o estado do baralho do JSON (esqueleto)"""
-        # TODO: Implementar carregamento do JSON
+        """Carrega o estado do baralho do JSON."""
         try:
             with open(self._json_file, 'r') as f:
                 data = json.load(f)
@@ -47,8 +48,7 @@ class Deck:
             self._initialize_new_deck()
     
     def _save_to_json(self) -> None:
-        """Salva o estado atual do baralho em JSON (esqueleto)"""
-        # TODO: Implementar salvamento completo
+        """Salva o estado atual do baralho em JSON."""
         data = {
             "cards": self._cards,
             "discard_pile": self._discard_pile
@@ -61,35 +61,34 @@ class Deck:
     
     def shuffle(self) -> None:
         """Embaralha as cartas do baralho principal"""
-        random.shuffle(self._cards)
-        # TODO: Adicionar registro de shuffle no JSON
+        random.shuffle(self._cards)␊
+        self._save_to_json()
     
     def draw(self, count: int = 1) -> List[Dict]:
-        """Compra cartas do topo do baralho (parcial)"""
-        # TODO: Implementar lógica completa com JSON
+        """Compra cartas do topo do baralho."""
+        count = min(count, len(self._cards))
         drawn = self._cards[:count]
         self._cards = self._cards[count:]
-        
-        # Atualizar estado no JSON
+
         for card in drawn:
             card["in_game"] = True
         self._save_to_json()
-        
         return drawn
     
     def discard(self, card: Dict) -> None:
-        """Descarta uma carta para a pilha de descarte (parcial)"""
-        # TODO: Implementar lógica completa
-        self._discard_pile.append(card)
-        self._save_to_json()
+        """Descarta uma carta para a pilha de descarte."""
+        card["in_game"] = False
+        self._discard_pile.append(card)␊
+        self._save_to_json()␊
     
     def return_cards(self, cards: List[Dict]) -> None:
-        """Devolve cartas para o baralho (parcial)"""
-        # TODO: Implementar lógica de retorno com JSON
+        """Devolve cartas para o baralho."""
         for card in cards:
             card["in_game"] = False
+            if card in self._discard_pile:
+                self._discard_pile.remove(card)
         self._cards.extend(cards)
-        self._save_to_json()
+        self.shuffle()
     
     def get_deck_state(self) -> Dict:
         """Retorna o estado atual do baralho para debug"""
