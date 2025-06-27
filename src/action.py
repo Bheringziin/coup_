@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import Optional
-from player import Player
-from game_manager import *
+from typing import Optional, List, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from player import Player
+    from game_manager import GameManager
 
 class Action(ABC):
     def __init__(self, cost: int, requirement: str = None, blockable_by: List[str] = None):
@@ -22,23 +24,40 @@ class Action(ABC):
         return self._requirement
     
     @abstractmethod
-    def execute(self, attacker, target, game_state) -> None:
+    def execute(
+        self,
+        attacker: 'Player',
+        target: Optional['Player'] = None,
+        game_manager: Optional['GameManager'] = None,
+    ) -> Optional[str]:
+        """Executa a ação."""
         pass
 
 
 class IncomeAction(Action):
     def __init__(self):
         super().__init__(cost=0)
-    
-    def execute(self, attacker, target, game_state) -> None:
+
+    def execute(
+        self,
+        attacker: 'Player',
+        target: Optional['Player'] = None,
+        game_manager: Optional['GameManager'] = None,
+    ) -> str:
         attacker.coins += 1
+        return f"{attacker.name} ganhou 1 moeda"
 
 
 class ForeignAidAction(Action):
     def __init__(self):
         super().__init__(cost=0, blockable_by=["Duke"])
-    
-    def execute(self, attacker: 'Player', target: 'Player' = None) -> str:
+
+    def execute(
+        self,
+        attacker: 'Player',
+        target: Optional['Player'] = None,
+        game_manager: Optional['GameManager'] = None,
+    ) -> str:
         attacker.coins += 2
         return f"{attacker.name} recebeu 2 moedas de ajuda externa"
 
@@ -52,7 +71,12 @@ class CoupAction(Action):
         """
         super().__init__(cost=7)  # Coup custa 7 moedas
     
-    def execute(self, attacker: 'Player', target: Optional['Player'], game_manager: 'GameManager') -> None:
+    def execute(
+        self,
+        attacker: 'Player',
+        target: Optional['Player'],
+        game_manager: Optional['GameManager'] = None,
+    ) -> str:
         """
         Executa a ação Coup:
         1. Verifica se o atacante tem moedas suficientes (já verificado no perform_action)
@@ -76,14 +100,22 @@ class CoupAction(Action):
         
         # Registrar a ação no histórico do jogo
         if game_manager is not None:
-            game_manager.add_to_history(f"{attacker.name} realizou Coup em {target.name}")
+            game_manager.add_to_history(
+                f"{attacker.name} realizou Coup em {target.name}"
+            )
+        return f"{attacker.name} aplicou um golpe de estado em {target.name}"
 
 class AssassinateAction(Action):
     """Ação do Assassino - custa 3 moedas para eliminar uma influência"""
     def __init__(self):
         super().__init__(cost=3, requirement="Assassin", blockable_by=["Contessa"])
     
-    def execute(self, attacker: 'Player', target: 'Player' = None) -> str:
+    def execute(
+        self,
+        attacker: 'Player',
+        target: Optional['Player'] = None,
+        game_manager: Optional['GameManager'] = None,
+    ) -> str:
         if not target:
             raise ValueError("Assassinar precisa de um alvo")
         
@@ -99,7 +131,12 @@ class TaxAction(Action):
     def __init__(self):
         super().__init__(cost=0, requirement="Duke")
     
-    def execute(self, attacker: 'Player', target: 'Player' = None) -> str:
+    def execute(
+        self,
+        attacker: 'Player',
+        target: Optional['Player'] = None,
+        game_manager: Optional['GameManager'] = None,
+    ) -> str:
         attacker.coins += 3
         return f"{attacker.name} coletou impostos como Duque (+3 moedas)"
 
@@ -108,7 +145,12 @@ class StealAction(Action):
     def __init__(self):
         super().__init__(cost=0, requirement="Captain", blockable_by=["Captain", "Ambassador"])
     
-    def execute(self, attacker: 'Player', target: 'Player' = None) -> str:
+    def execute(
+        self,
+        attacker: 'Player',
+        target: Optional['Player'] = None,
+        game_manager: Optional['GameManager'] = None,
+    ) -> str:
         if not target:
             raise ValueError("Roubo precisa de um alvo")
         
@@ -124,7 +166,12 @@ class ExchangeAction(Action):
     def __init__(self):
         super().__init__(cost=0, requirement="Ambassador")
     
-    def execute(self, attacker: 'Player', target: 'Player' = None) -> str:
+    def execute(
+        self,
+        attacker: 'Player',
+        target: Optional['Player'] = None,
+        game_manager: Optional['GameManager'] = None,
+    ) -> str:
         # Em uma implementação completa, aqui seria a lógica de troca de cartas
         return f"{attacker.name} usou o Embaixador para trocar cartas"
     
@@ -151,8 +198,13 @@ class Challenge:
         else:
             # Desafio bem-sucedido - o jogador blefou
             player_to_check.lose_influence()
-            return (f"{self._challenger.name} desafiou corretamente!\n"
-                    f"{player_to_check.name} não tinha {self._action.requirement} e perdeu uma influência.")
+            game.add_to_history(
+                f"{self._challenger.name} desafiou {player_to_check.name} corretamente"
+            )
+            return (
+                f"{self._challenger.name} desafiou corretamente! {player_to_check.name} "
+                f"não tinha {self._action.requirement} e perdeu uma influência."
+            )
         
 class Block:
     """Representa um bloqueio a uma ação"""
@@ -168,5 +220,10 @@ class Block:
             return f"{self._blocking_character} não pode bloquear esta ação!"
         
         # A ação é bloqueada
-        return (f"{self._blocker.name} bloqueou a ação com {self._blocking_character}!\n"
-                f"A ação {self._action.__class__.__name__} foi cancelada.")
+        game.add_to_history(
+            f"{self._blocker.name} bloqueou a ação com {self._blocking_character}"
+        )
+        return (
+            f"{self._blocker.name} bloqueou a ação com {self._blocking_character}!\n"
+            f"A ação {self._action.__class__.__name__} foi cancelada."
+        )
