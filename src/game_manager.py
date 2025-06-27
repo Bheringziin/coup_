@@ -193,4 +193,3 @@ class GameManager:
         self._history = data.get("history", [])
         self._deck = Deck(data.get("deck_file", "deck_state.json"))
         self._players = [Player.from_dict(pdata) for pdata in data.get("players", [])]
-
